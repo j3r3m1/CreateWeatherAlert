@@ -9,9 +9,8 @@ Created on Fri Nov  8 13:54:28 2019
 import wget
 import zlib
 
-def RetrieveMeteoFranceSynop(yearsList = [2018, 2019],
-                            monthsList = range(1, 13),
-                            output_directory = "/home/decide/Data/Climato/Donnees_brutes/MF/Donnees_libres/SYNOP",
+def downloadMeteoFranceSynop(yearsAndMonths = {2018: range(1, 13), 2019: range(1, 10)},
+                            output_directory = "/home/decide/Data/Climato/Donnees_brutes/MF/Donnees_libres/SYNOP/",
                             url="https://donneespubliques.meteofrance.fr/donnees_libres/Txt/Synop/Archive/",
                             baseName="synop.",
                             fileFormat=".csv.gz"):
@@ -22,10 +21,9 @@ def RetrieveMeteoFranceSynop(yearsList = [2018, 2019],
         	Parameters
 		_ _ _ _ _ _ _ _ _ _ 
 							
-			yearsList : list, default [2018, 2019]
-				list containing all the years to download
-			monthsList : list, default range(1, 13)
-				list containing all the months to download
+			yearsAndMonths : dictionary, default [2018: [range(1, 13)], 2019: range(1, 10)]
+				dictionary containing as keys the years and as values the corresponding
+                month to download
 			output_directory : string, default "/home/decide/Data/Climato/Donnees_brutes/MF/Donnees_libres/SYNOP"
 				string where is stored the base of the URL construction used
                 to download the data
@@ -37,20 +35,26 @@ def RetrieveMeteoFranceSynop(yearsList = [2018, 2019],
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 							
-					An "optimal" fitted statsmodels linear model with an intercept selected by forward selection evaluated by adjusted R-squared"""
+			None (data are saved in a csv file)"""
 
     # Iterate over needed years and months
-    for y in yearsList:
-        for m in monthsList:
+    for y in yearsAndMonths.keys():
+        for m in yearsAndMonths[y]:
             # The months are processed differently when they are < 10 (a 0 is added before)
             	if (m > 9):
-                # Download the file and save it into the output_directory
-                fileName = wget.download(url+baseName+str(y)+str(m),\
-                                         out = output_directory)
+                    # Download the archive file and save it into the output_directory
+                    pathAndFileArch, headNotUse = urllib.urlretrieve(url+baseName+str(y)+str(m)+fileFormat,\
+                                                                     output_directory+baseName+\
+                                                                     str(y)+str(m)+fileFormat)
+                else:
+                    pathAndFileArch, headNotUse = urllib.urlretrieve(url+baseName+str(y)+"0"+str(m)+fileFormat,\
+                                                                     output_directory+baseName+\
+                                                                     str(y)+"0"+str(m)+fileFormat)
+                
                 # Decompress the downloaded zip into the output_directory
-                zlib.decompress(fileName)
-            else:
-                fileName = wget.download(url+baseName+str(y)+"0"+str(m),\
-                                         out = output_directory)
-                zlib.decompress(fileName)
+                str_object1 = open(pathAndFileArch, 'rb').read()
+                str_object2 = zlib.decompress(str_object1, zlib.MAX_WBITS|32)
+                f = open(pathAndFileArch[0:-len(fileFormat)], 'wb')
+                f.write(str_object2)
+                f.close()
             
