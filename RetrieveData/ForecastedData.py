@@ -40,13 +40,11 @@ def downloadMeteorama(city = 'Grièges',
             the next 10 days for the "city" supplied as input."""
     
     # Column names to set and to keep for the data recovered
-    col_names = {"toSet": ["Date", "ImageWeather", "Air temperature", "ImageWind dir",
-                           "Wind speed", "Gust wind speed", "Precipitations", 
-                           "Cloud cover", "Air relative humidity", 
-                           "Atmospheric pressure"],
-                 "toKeep": ["Air temperature", "Wind speed", 
-                            "Precipitations", "Cloud cover", 
-                            "Air relative humidity", "Atmospheric pressure"]}
+    col_names = {"toSet": ["Date", "ImageWeather", "Tair", "ImageWind dir",
+                           "WindSpeed", "WindDir", "Precipitations", 
+                           "Nebulosity", "RHair", "Patmo"],
+                 "toKeep": ["Tair", "WindSpeed", "Precipitations", 
+                            "Nebulosity", "RHair", "Patmo"]}
     # String to remove from the data recovered on the internet
     char2remove = [u'\xc2\xba', " km/h", " mm", "%", "%", " hPa"]
 
