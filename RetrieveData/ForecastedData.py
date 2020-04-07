@@ -16,7 +16,8 @@ def downloadMeteorama(city = 'Grièges',
     """ Download hourly weather forecasted for the next 10 days for a given
     city (based on Meteorama forecasting: https://www.meteorama.fr). Available
     meteorological variables are: air temperature, wind speed, precipitations,
-    cloud covering, air relative humidity and atmospheric pressure.
+    cloud covering, air relative humidity and atmospheric pressure. Convert all
+    of them in current units used in meteorology.
 
         	Parameters
 		_ _ _ _ _ _ _ _ _ _ 
@@ -85,4 +86,12 @@ def downloadMeteorama(city = 'Grièges',
         #Add the current day to the global DataFrame
         df_output = df_output.append(df_list[i])
     
+    #Convert all data to float
+    df_output = pd.DataFrame(df_output, dtype = float)
+    
+    # Convert to international units (m/s and Pa)
+    df_output["WindSpeed"] = df_output["WindSpeed"] / 3.6
+    df_output["Patmo"] = df_output["Patmo"] * 100
+    
     return pd.DataFrame(df_output, dtype = float)
+    

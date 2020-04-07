@@ -108,7 +108,7 @@ def loadMeteoFranceSynop(cityCode = 7222,
                 yearsAndMonthsStr[str(y)].append("0" + str(m))
             else:
                 yearsAndMonthsStr[str(y)].append(str(m))
-    
+
     df_W = pd.concat([pd.read_csv(inputDirectory + baseName + y + m + ".csv", \
                                   parse_dates = [1], header = 0, sep = ";",\
                                   index_col = None, na_values = 'mq') for y in yearsAndMonthsStr.keys()
@@ -118,7 +118,7 @@ def loadMeteoFranceSynop(cityCode = 7222,
     df_output = df_W[df_W.numer_sta == 7222]
     df_output.loc[:,"date"] = pd.to_datetime(df_output["date"], format = "%Y%m%d%H%M%S")
     df_output.index = df_output["date"]
-    df_output.drop(["date", "numer_sta"], axis = 1, inplace = True)
+    df_output.sort_index().drop(["date", "numer_sta"], axis = 1, inplace = True)
     
     if saveFile == True:
         df_output.to_csv(output_directory+cityCode+".csv")
