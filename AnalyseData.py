@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
 import numpy as np
-from RetrieveData import ObservedData, ForecastedData
 from collections import defaultdict
-from geopy.geocoders import Nominatim
 from skyfield import api
 from skyfield import almanac
 import matplotlib.pylab as plt
