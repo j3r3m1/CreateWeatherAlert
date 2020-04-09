@@ -83,7 +83,7 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
             fig, ax = plotMeanDay(df_mean = df_m_mean, df_high = df_m_high, 
                                   df_low = df_m_low, name = m)
             if save:
-                fig.savefig(path2SaveFig+s)
+                fig.savefig(path2SaveFig+str(m))
     
     # Same as before for dimensionless days
     if (dimensionlessDay):
@@ -135,7 +135,7 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
                         if p == "night":
                             ax[-1].set_xlabel(u"Temps après coucher du soleil (min)")
                         if save:
-                            fig.savefig(path2SaveFig+"DimLess"+p+"_"+s)
+                            fig.savefig(path2SaveFig+"DimLess"+p+"_"+str(m))
 
 def plotMeanDay(df_mean, df_high, df_low, name):
     """Plot on a same Figure the mean day and its low and high equivalent.
@@ -160,8 +160,11 @@ def plotMeanDay(df_mean, df_high, df_low, name):
     fig, ax = plt.subplots(nrows = df_mean.columns.size, sharex = True)
     fig.suptitle(name)
     df_mean.plot(subplots = True, ax = ax, label = "median")
-    for axi in ax:
-        axi.legend(loc = "lower left")
+    if df_mean.columns.size > 1:
+        for axi in ax:
+            axi.legend(loc = "lower left")
+    else:
+        ax.legend(loc = "lower left")
     df_high.plot(subplots = True, ax = ax, linestyle = "--", legend = False)
     df_low.plot(subplots = True, ax = ax, linestyle = "--", legend = False)
 
