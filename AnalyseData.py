@@ -11,12 +11,16 @@ from math import ceil
 import random
 from joblib import dump
 
+# For each key (corresponding to the month number), the associated season is given
+SeasonDict={1: "Winter", 2:"Winter", 3:"Spring", 4:"Spring", 5:"Spring", 6:"Summer", 7:"Summer", 8:"Summer", 9:"Autumn", 10:"Autumn", 11:"Autumn", 12:"Winter"}
 
 def GroupMonthBySeas(x):
     """Split data into seasons"""
     return SeasonDict[x.month]
 
-def periodsIdentification(df2study, df_sun_events, path2SaveFig, perc_values = 0.5, 
+def periodsIdentification(df2study, df_sun_events, path2SaveFig, 
+                          seasonal_sorting = ["ALL", "SEASON"], 
+                          dimensionlessDay = True, perc_values = 0.5, 
                           save = True):
     """Reconstitutes a mean day and the variability (low and high value) 
     around this mean for each column of the DataFrame to study. This is done
@@ -31,6 +35,13 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig, perc_values = 0
 				The micro-meteorological data to process
             df_sun_events : DataFrame
                 The 'sunrise' and 'sunset' hours for each day of the 'df2study' dataset
+            seasonal_sorting : List of String, default ["ALL", "SEASON"]
+                A list of the seasonal sorting to apply. May contain :
+                    -> "ALL" : no sorting is done, the day is representative of the whole dataset
+                    -> "SEASON": one average day for each season
+                    -> "MONTH" : one average day for each month
+            dimensionlessDay : boolean, default True
+                Whether or not the average days should also be plotted using a dimensionless scale
             path2SaveFig : string
                 Name of the URL where to save the resulting Figures if 'save' = True
 			perc_values : float, default 0.5
@@ -44,80 +55,120 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig, perc_values = 0
 
 			Return None"""
     # MEAN DAY FOR ALL DATA (AND WHOLE YEAR)
-    # First calculate a mean day and its variability around the mean and plot it
-    df_mean, df_high, df_low = meanDayCharac(df2study, perc_values = perc_values)
-    fig, ax = plt.subplots(nrows = df_mean.columns.size, sharex = True)
-    df_mean.plot(subplots = True, ax = ax, label = "median", sharey = True)
-    for axi in ax:
-        axi.legend(loc = "lower left")
-    df_high.plot(subplots = True, ax = ax, linestyle = "--", label = "q"+str((0.5+perc_values)*100), sharey = True, legend = False)
-    df_low.plot(subplots = True, ax = ax, linestyle = "--", label = "q"+str((0.5-perc_values)*100), sharey = True, legend = False)
-    if save:
-        fig.savefig(path2SaveFig+"allSeasons")
+    # calculate a mean day and its variability around the mean and plot it
+    if (seasonal_sorting.count("ALL")>0):
+        df_mean, df_high, df_low = meanDayCharac(df2study, perc_values = perc_values)
+        fig, ax = plotMeanDay(df_mean = df_mean, df_high = df_high, 
+                          df_low = df_low, name = "")
+        if save:
+            fig.savefig(path2SaveFig+"allSeasons")
     
     # MEAN DAY PER SEASONS
-    df_seas=df2study.groupby(GroupMonthBySeas)
-    # Calculate mean days by season
-    for s in sorted(set(SeasonDict.values())):
-        df_s_mean, df_s_high, df_s_low = meanDayCharac(df_seas.get_group(s), perc_values = 0.5)
-        fig, ax = plt.subplots(nrows = df_s_mean.columns.size, sharex = True)
-        fig.suptitle(s)
-        df_s_mean.plot(subplots = True, ax = ax, label = "median")
-        for axi in ax:
-            axi.legend(loc = "lower left")
-        df_s_high.plot(subplots = True, ax = ax, linestyle = "--", legend = False)
-        df_s_low.plot(subplots = True, ax = ax, linestyle = "--", legend = False)
-        if save:
-            fig.savefig(path2SaveFig+s)
-    
-    # MEAN FOR ALL YEARS USING DIMENSIONLESS DAYS
-    # Calculate mean days by season AND using dimensionless days
-    df_diml = {}
-    df_diml["day"], df_diml["night"] = dimensionless(df2study, df_sun_events.copy(), night_adim = False)
-    
-    # Calculate a dimensionless mean day and a dimensionless mean night and 
-    # its variability around the mean and plot it
-    perc_values = 0.5
-    for p in df_diml.keys():
-        df_mean = df_diml[p].groupby(level = 1).median()
-        df_high = df_diml[p].groupby(level = 1).quantile(0.5+perc_values/2)
-        df_low = df_diml[p].groupby(level = 1).quantile(0.5-perc_values/2)
-        fig, ax = plt.subplots(nrows = df_mean.columns.size, sharex = True)
-        df_mean.plot(subplots = True, ax = ax, label = "median")
-        for axi in ax:
-            axi.legend(loc = "lower left")
-        df_high.plot(subplots = True, ax = ax, linestyle = "--", label = "q"+str((0.5+perc_values)*100), legend = False)
-        df_low.plot(subplots = True, ax = ax, linestyle = "--", label = "q"+str((0.5-perc_values)*100), legend = False)
-        if p == "night":
-            ax[-1].set_xlabel(u"Temps après coucher du soleil (min)")
-        if save:
-            fig.savefig(path2SaveFig+"DimLess"+p+"_allSeasons")
-    
-    # MEAN FOR EACH SEASON USING DIMENSIONLESS DAYS
-    for p in df_diml.keys():
-        df_diml_p_seas=df_diml[p].groupby(GroupMonthBySeas, level = 0)
+    if (seasonal_sorting.count("SEASON")>0):
+        df_seas=df2study.groupby(GroupMonthBySeas)
+        # Calculate mean days by season
         for s in sorted(set(SeasonDict.values())):
-                df_mean = df_diml_p_seas.get_group(s).groupby(level = 1).median()
-                df_high = df_diml_p_seas.get_group(s).groupby(level = 1).quantile(0.5+perc_values/2)
-                df_low = df_diml_p_seas.get_group(s).groupby(level = 1).quantile(0.5-perc_values/2)
-                fig, ax = plt.subplots(nrows = df_mean.columns.size, sharex = True)
-                df_mean.plot(subplots = True, ax = ax, label = "median")
-                for axi in ax:
-                    axi.legend(loc = "lower left")
-                df_high.plot(subplots = True, ax = ax, linestyle = "--", label = "q"+str((0.5+perc_values)*100), legend = False)
-                df_low.plot(subplots = True, ax = ax, linestyle = "--", label = "q"+str((0.5-perc_values)*100), legend = False)
+            df_s_mean, df_s_high, df_s_low = meanDayCharac(df_seas.get_group(s), perc_values = perc_values)
+            fig, ax = plotMeanDay(df_mean = df_s_mean, df_high = df_s_high, 
+                        df_low = df_s_low, name = s)
+            if save:
+                fig.savefig(path2SaveFig+s)
+                
+    # MEAN DAY PER MONTHS
+    if (seasonal_sorting.count("MONTH")>0):
+        df_month=df2study.groupby(df2study.index.month)
+        # Calculate mean days by season
+        for m in sorted(set(df2study.index.month)):
+            df_m_mean, df_m_high, df_m_low = meanDayCharac(df_month.get_group(m), perc_values = perc_values)
+            fig, ax = plotMeanDay(df_mean = df_m_mean, df_high = df_m_high, 
+                                  df_low = df_m_low, name = m)
+            if save:
+                fig.savefig(path2SaveFig+s)
+    
+    # Same as before for dimensionless days
+    if (dimensionlessDay):
+        # Calculate mean days by season AND using dimensionless days
+        df_diml = {}
+        df_diml["day"], df_diml["night"] = dimensionless(df2study, df_sun_events.copy(), night_adim = False)
+        
+        # MEAN FOR WHOLE YEARS USING DIMENSIONLESS DAYS
+        if (seasonal_sorting.count("ALL")>0):
+            # Calculate a dimensionless mean day and a dimensionless mean night and 
+            # its variability around the mean and plot it
+            perc_values = 0.5
+            for p in df_diml.keys():
+                df_mean = df_diml[p].groupby(level = 1).median()
+                df_high = df_diml[p].groupby(level = 1).quantile(0.5+perc_values/2)
+                df_low = df_diml[p].groupby(level = 1).quantile(0.5-perc_values/2)
+                fig, ax = plotMeanDay(df_mean = df_mean, df_high = df_high, 
+                                      df_low = df_low, name = "")
                 if p == "night":
                     ax[-1].set_xlabel(u"Temps après coucher du soleil (min)")
                 if save:
-                    fig.savefig(path2SaveFig+"DimLess"+p+"_"+s)
+                    fig.savefig(path2SaveFig+"DimLess"+p+"_allSeasons")
+        
+        # MEAN FOR EACH SEASON USING DIMENSIONLESS DAYS
+        if (seasonal_sorting.count("SEASON")>0):
+            for p in df_diml.keys():
+                df_diml_p_seas=df_diml[p].groupby(GroupMonthBySeas, level = 0)
+                for s in sorted(set(SeasonDict.values())):
+                        df_mean = df_diml_p_seas.get_group(s).groupby(level = 1).median()
+                        df_high = df_diml_p_seas.get_group(s).groupby(level = 1).quantile(0.5+perc_values/2)
+                        df_low = df_diml_p_seas.get_group(s).groupby(level = 1).quantile(0.5-perc_values/2)
+                        fig, ax = plotMeanDay(df_mean = df_mean, df_high = df_high, 
+                                              df_low = df_low, name = s)
+                        if p == "night":
+                            ax[-1].set_xlabel(u"Temps après coucher du soleil (min)")
+                        if save:
+                            fig.savefig(path2SaveFig+"DimLess"+p+"_"+s)
+                        
+        # MEAN FOR EACH MONTH USING DIMENSIONLESS DAYS
+        if (seasonal_sorting.count("MONTH")>0):
+            for p in df_diml.keys():
+                df_diml_p_month=df_diml[p].groupby(pd.DatetimeIndex(df_diml[p].index.get_level_values(0)).month)
+                for m in sorted(set(pd.DatetimeIndex(df_diml[p].index.get_level_values(0)).month)):
+                        df_mean = df_diml_p_month.get_group(m).groupby(level = 1).median()
+                        df_high = df_diml_p_month.get_group(m).groupby(level = 1).quantile(0.5+perc_values/2)
+                        df_low = df_diml_p_month.get_group(m).groupby(level = 1).quantile(0.5-perc_values/2)
+                        fig, ax = plotMeanDay(df_mean = df_mean, df_high = df_high, 
+                                              df_low = df_low, name = m)
+                        if p == "night":
+                            ax[-1].set_xlabel(u"Temps après coucher du soleil (min)")
+                        if save:
+                            fig.savefig(path2SaveFig+"DimLess"+p+"_"+s)
+
+def plotMeanDay(df_mean, df_high, df_low, name):
+    """Plot on a same Figure the mean day and its low and high equivalent.
+    
+	Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+
+			df_mean : DataFrame
+                Data of the mean day
+            df_high : DataFrame
+                Data of the high values day
+            df_low : DataFrame
+                Data of the low values day
+
+	Returns 
+	_ _ _ _ _ _ _ _ _ _ 
+
+			fig : Figure
+                Figure where are plot the curves
+            ax : Axis
+                Axis in the figure where are plot the curves"""
+    fig, ax = plt.subplots(nrows = df_mean.columns.size, sharex = True)
+    fig.suptitle(name)
+    df_mean.plot(subplots = True, ax = ax, label = "median")
+    for axi in ax:
+        axi.legend(loc = "lower left")
+    df_high.plot(subplots = True, ax = ax, linestyle = "--", legend = False)
+    df_low.plot(subplots = True, ax = ax, linestyle = "--", legend = False)
+
+    return fig, ax
 
 def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
-                         meteo_period_df, SeasonDict = {1: "Winter", 2:"Winter",
-                                                        3:"Spring", 4:"Spring", 
-                                                        5:"Spring", 6:"Summer", 
-                                                        7:"Summer", 8:"Summer", 
-                                                        9:"Autumn", 10:"Autumn", 
-                                                        11:"Autumn", 12:"Winter"}):
+                         meteo_period_df):
     """Calculates average conditions for micro-meteorological data and meteorological
     data:
         - Concerning micro-meteorological data, the averaging is performed
@@ -143,9 +194,6 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
                 values for the meteorological condition calculation. These
                 periods are defined in hours before the begining of the micro-meteorological
                 period.
-            SeasonDict : dictionary
-                For each key (corresponding to the month number), the associated
-                season is given
 
 	Returns 
 	_ _ _ _ _ _ _ _ _ _ 
@@ -154,9 +202,11 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
                 The micro-meteorological indicators sorted by period and by month
             df_meteo_indic : dictionary
                 The meteorological indicators sorted by period and by month"""        
+    global SeasonDict
+    
     # Calculation of the mean sunrise dates for each season (in minutes from 00:00)
     df_sun_sec = pd.DataFrame({se : pd.to_timedelta(df_sun_events[se].astype(str).values).total_seconds()
-                    for se in sunevents}, index = pd.DatetimeIndex(df_sun_events.index))
+                    for se in df_sun_events.columns}, index = pd.DatetimeIndex(df_sun_events.index))
     df_sun_sec_s = df_sun_sec.groupby(GroupMonthBySeas)
     # Convert seconds to a time of the day round at dt = 15 minutes
     df_sun_s = {s : (pd.datetime(2019, 1, 1) + 
@@ -200,7 +250,8 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
         
 
 def plotMeteorologicalRelations(df_micromet_indic, df_meteo_indic, operations,
-                                path2SaveFig, save = True):
+                                path2SaveFig, save = True, 
+                                ratio2considerNotNan = 0.8, tick_size = 12):
     """Plot meteorological relations between micro meteorological and meteorological
     indicators.
     
@@ -219,6 +270,11 @@ def plotMeteorologicalRelations(df_micromet_indic, df_meteo_indic, operations,
                 Name of the URL where to save the resulting Figures if 'save' = True
             save : boolean, default True
                 Whether or not the figures should be saved
+            ratio2considerNotNan : float, default 0.8
+                When averaging several temperature differences, ratio of temperature differences
+                that should not be NaN
+            tick_size : int, default 12
+                Size of the tick axis
 
 	Returns 
 	_ _ _ _ _ _ _ _ _ _ 
@@ -227,7 +283,7 @@ def plotMeteorologicalRelations(df_micromet_indic, df_meteo_indic, operations,
     for p in df_micromet_indic.keys():
         for s in df_micromet_indic[p].keys():
             print "\n\n\n" + p + " - " + s
-            fig, ax = plt.subplots(ncols = var2keep.size, figsize = (20, 4), sharey = True)
+            fig, ax = plt.subplots(ncols = df_meteo_indic[p][s].columns.size, figsize = (20, 4), sharey = True)
             x = df_meteo_indic[p][s].copy()
             # Recover the station to average
             stations2averag = operations.loc[p, "list_average"]
@@ -276,6 +332,12 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
                     -> "col_name": Name of the column containing the extremum / other class
                     -> "max_depth": Maximum depth of the tree to test
                     -> "df_conditions": Conditions for selecting the data for each period
+                    -> "ratio2considerNotNan": when averaging several temperature
+                    differences, ratio of temperature differences that should not be NaN
+                    -> "tick_size": Size of the tick axis on the figure
+                    -> "operations": For each period of interest, contaings 
+                    the list of the data needed to be study and the potential 
+                    period used as reference for this period (substract the two periods)
             path2SaveFig : string
                 Name of the URL where to save the resulting Figures if 'save' = True
             save : boolean, default True
@@ -295,7 +357,9 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
     col_name = config_dic["col_name"]
     max_depth = config_dic["max_depth"]
     df_conditions = config_dic["df_conditions"]
-    
+    ratio2considerNotNan = config_dic["ratio2considerNotNan"]
+    tick_size = config_dic["tick_size"]
+    operations = config_dic["operations"]
     
     fig, ax = plt.subplots(ncols = len(df_micromet_indic.keys()), figsize = (20, 4), sharey = True)
     fig.subplots_adjust(left = 0.05, right = 0.99, wspace = 0.22, hspace = 0.30, bottom = 0.12, top = 0.90)
@@ -381,7 +445,7 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
             final_tree = clf.fit(df_all[meteo_var], df_all[col_name])
             
             # Save the model into a joblib file
-            dump(final_tree, path2savefig+folderName3+s+p+'.joblib') 
+            dump(final_tree, path2SaveFig+s+p+'.joblib') 
             
             # Export the tree as an image
             dot_data = tree.export_graphviz(final_tree, out_file=None, 
@@ -390,7 +454,7 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
                                             filled=True, rounded=True,  
                                             special_characters=True)
             graphviz.Source(dot_data).save(filename = "Tree_"+s+p+".dot",
-                                           directory = path2savefig+folderName3)
+                                           directory = path2SaveFig)
             
     if save:
         fig.savefig(path2SaveFig+"Accuracy.png")
