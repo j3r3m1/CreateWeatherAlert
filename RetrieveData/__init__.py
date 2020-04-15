@@ -1,3 +1,3 @@
 # -*- coding: utf-8 -*-
-import ForecastedData
-import ObservedData
+from . import ForecastedData
+from . import ObservedData

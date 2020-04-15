@@ -1,3 +1,3 @@
 # -*- coding: utf-8 -*-
-import RetrieveData
-import AnalyseData
+from . import RetrieveData
+from . import AnalyseData
