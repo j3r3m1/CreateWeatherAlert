@@ -224,12 +224,12 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
     df_micromet_indic = {}
     df_meteo_indic = {}
     for p in meteo_period_df.index:
-        print p
+        print(p)
         filt_meteo = meteo_period_df.loc[p, :]
         df_micromet_indic[p] = {}
         df_meteo_indic[p] = {}
         for s in sorted(set(SeasonDict.values())):
-            print s
+            print(s)
             # If the period of interest is during the day
             if p[0:2] == "PJ":
                 filt_micro = [micromet_period_dic[s].loc[p, "period_start"], 
@@ -299,9 +299,9 @@ def plotMeteorologicalRelations(df_micromet_indic, df_meteo_indic, operations,
                 if s in df_micromet_indic[operations.loc[p, "subtract"]].keys():
                     y = y.subtract(df_micromet_indic[operations.loc[p, "subtract"]][s][operations.loc[p, "list_average"]].dropna(thresh = thresh_nan, axis = 1).mean(axis = 1))
                     y = y.reindex(x.index)
-            print "x_col :" + x.columns
-            print "x_size :" + str(x.size)
-            print "y_size :" + str(y.size)
+            print("x_col :" + x.columns)
+            print("x_size :" + str(x.size))
+            print("y_size :" + str(y.size))
             for i, var in enumerate(x.columns):
                 ax[i].plot(x[var], y, "o", alpha = 0.25)
                 fig, ax[i] = graph_layout(x_name = var, y_name = u"Temperature (K)",
@@ -368,7 +368,7 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
     fig.subplots_adjust(left = 0.05, right = 0.99, wspace = 0.22, hspace = 0.30, bottom = 0.12, top = 0.90)
     for axi, p in enumerate(df_micromet_indic.keys()):
         for si, s in enumerate(df_micromet_indic[p].keys()):
-            print "\n\n\n" + p + " - " + s
+            print("\n\n\n" + p + " - " + s)
             
             meteo_var = df_conditions.loc[p, "meteorological_variables"]
             x = df_meteo_indic[p][s][meteo_var].copy()
@@ -758,7 +758,7 @@ def dimensionless(df, df_th_sun, night_adim = False, dt = 15):
     #For each day
     for d in sorted(set(df.index.date)):
         buff_day = df[str(d)].copy()
-        print d
+        print(d)
         # DO THE DAY-TIME TRANSFORMATION
         # Process the day only if there are values
         if buff_day.dropna(how = "all").size != 0:

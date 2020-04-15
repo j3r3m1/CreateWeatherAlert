@@ -67,7 +67,7 @@ def downloadMeteorama(city = 'Grièges',
     # Create the final DataFrame from each DataFrame day
     df_output = pd.DataFrame(columns = col_names["toKeep"])
     for i in range(3, 12):
-        print i
+        print(i)
         # Replace the column names and keep only those useful
         df_list[i].columns = col_names["toSet"]
         df_list[i] = df_list[i][col_names["toKeep"]]

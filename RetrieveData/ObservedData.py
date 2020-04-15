@@ -43,21 +43,21 @@ def downloadMeteoFranceSynop(yearsAndMonths = {2018: range(1, 13), 2019: range(1
         for m in yearsAndMonths[y]:
             # The months are processed differently when they are < 10 (a 0 is added before)
             	if (m > 9):
-                    # Download the archive file and save it into the output_directory
-                    pathAndFileArch, headNotUse = urllib.urlretrieve(url+baseName+str(y)+str(m)+fileFormat,\
-                                                                     output_directory+baseName+\
-                                                                     str(y)+str(m)+fileFormat)
-                else:
-                    pathAndFileArch, headNotUse = urllib.urlretrieve(url+baseName+str(y)+"0"+str(m)+fileFormat,\
-                                                                     output_directory+baseName+\
-                                                                     str(y)+"0"+str(m)+fileFormat)
-                
-                # Decompress the downloaded zip into the output_directory
-                str_object1 = open(pathAndFileArch, 'rb').read()
-                str_object2 = zlib.decompress(str_object1, zlib.MAX_WBITS|32)
-                f = open(pathAndFileArch[0:-len(fileFormat)]+".csv", 'wb')
-                f.write(str_object2)
-                f.close()
+                # Download the archive file and save it into the output_directory
+                pathAndFileArch, headNotUse = urllib.urlretrieve(url+baseName+str(y)+str(m)+fileFormat,\
+                                                                 output_directory+baseName+\
+                                                                 str(y)+str(m)+fileFormat)
+            else:
+                pathAndFileArch, headNotUse = urllib.urlretrieve(url+baseName+str(y)+"0"+str(m)+fileFormat,\
+                                                                 output_directory+baseName+\
+                                                                 str(y)+"0"+str(m)+fileFormat)
+            
+            # Decompress the downloaded zip into the output_directory
+            str_object1 = open(pathAndFileArch, 'rb').read()
+            str_object2 = zlib.decompress(str_object1, zlib.MAX_WBITS|32)
+            f = open(pathAndFileArch[0:-len(fileFormat)]+".csv", 'wb')
+            f.write(str_object2)
+            f.close()
             
             
 def loadMeteoFranceSynop(cityCode = 7222,
