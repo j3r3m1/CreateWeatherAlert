@@ -5,8 +5,7 @@ Created on Fri Nov  8 13:54:28 2019
 
 @author: Jérémy Bernard
 """
-
-import wget
+import urllib
 import zlib
 import pandas as pd
 
@@ -42,7 +41,7 @@ def downloadMeteoFranceSynop(yearsAndMonths = {2018: range(1, 13), 2019: range(1
     for y in yearsAndMonths.keys():
         for m in yearsAndMonths[y]:
             # The months are processed differently when they are < 10 (a 0 is added before)
-            	if (m > 9):
+            if (m > 9):
                 # Download the archive file and save it into the output_directory
                 pathAndFileArch, headNotUse = urllib.urlretrieve(url+baseName+str(y)+str(m)+fileFormat,\
                                                                  output_directory+baseName+\
