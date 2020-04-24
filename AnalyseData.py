@@ -21,7 +21,7 @@ def GroupMonthBySeas(x):
 def periodsIdentification(df2study, df_sun_events, path2SaveFig, 
                           seasonal_sorting = ["ALL", "SEASON"], 
                           dimensionlessDay = True, perc_values = 0.5, 
-                          save = True):
+                          save = True, same_ax = False):
     """Reconstitutes a mean day and the variability (low and high value) 
     around this mean for each column of the DataFrame to study. This is done
     for the whole dataset or for each season, using real days or dimensionless
@@ -42,6 +42,8 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
                     -> "MONTH" : one average day for each month
             dimensionlessDay : boolean, default True
                 Whether or not the average days should also be plotted using a dimensionless scale
+            same_ax : Boolean, default False
+                Whether or not the curves are plotted on a same axis
             path2SaveFig : string
                 Name of the URL where to save the resulting Figures if 'save' = True
 			perc_values : float, default 0.5
@@ -59,7 +61,7 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
     if (seasonal_sorting.count("ALL")>0):
         df_mean, df_high, df_low = meanDayCharac(df2study, perc_values = perc_values)
         fig, ax = plotMeanDay(df_mean = df_mean, df_high = df_high, 
-                          df_low = df_low, name = "")
+                          df_low = df_low, name = "", same_ax = same_ax)
         if save:
             fig.savefig(path2SaveFig+"allSeasons")
     
@@ -70,7 +72,7 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
         for s in sorted(set(SeasonDict.values())):
             df_s_mean, df_s_high, df_s_low = meanDayCharac(df_seas.get_group(s), perc_values = perc_values)
             fig, ax = plotMeanDay(df_mean = df_s_mean, df_high = df_s_high, 
-                        df_low = df_s_low, name = s)
+                        df_low = df_s_low, name = s, same_ax = same_ax)
             if save:
                 fig.savefig(path2SaveFig+s)
                 
@@ -81,7 +83,7 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
         for m in sorted(set(df2study.index.month)):
             df_m_mean, df_m_high, df_m_low = meanDayCharac(df_month.get_group(m), perc_values = perc_values)
             fig, ax = plotMeanDay(df_mean = df_m_mean, df_high = df_m_high, 
-                                  df_low = df_m_low, name = m)
+                                  df_low = df_m_low, name = m, same_ax = same_ax)
             if save:
                 fig.savefig(path2SaveFig+str(m))
     
@@ -101,7 +103,7 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
                 df_high = df_diml[p].groupby(level = 1).quantile(0.5+perc_values/2)
                 df_low = df_diml[p].groupby(level = 1).quantile(0.5-perc_values/2)
                 fig, ax = plotMeanDay(df_mean = df_mean, df_high = df_high, 
-                                      df_low = df_low, name = "")
+                                      df_low = df_low, name = "", same_ax = same_ax)
                 if p == "night":
                     ax[-1].set_xlabel(u"Temps après coucher du soleil (min)")
                 if save:
@@ -116,7 +118,7 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
                         df_high = df_diml_p_seas.get_group(s).groupby(level = 1).quantile(0.5+perc_values/2)
                         df_low = df_diml_p_seas.get_group(s).groupby(level = 1).quantile(0.5-perc_values/2)
                         fig, ax = plotMeanDay(df_mean = df_mean, df_high = df_high, 
-                                              df_low = df_low, name = s)
+                                              df_low = df_low, name = s, same_ax = same_ax)
                         if p == "night":
                             ax[-1].set_xlabel(u"Temps après coucher du soleil (min)")
                         if save:
@@ -131,13 +133,13 @@ def periodsIdentification(df2study, df_sun_events, path2SaveFig,
                         df_high = df_diml_p_month.get_group(m).groupby(level = 1).quantile(0.5+perc_values/2)
                         df_low = df_diml_p_month.get_group(m).groupby(level = 1).quantile(0.5-perc_values/2)
                         fig, ax = plotMeanDay(df_mean = df_mean, df_high = df_high, 
-                                              df_low = df_low, name = m)
+                                              df_low = df_low, name = m, same_ax = same_ax)
                         if p == "night":
                             ax[-1].set_xlabel(u"Temps après coucher du soleil (min)")
                         if save:
                             fig.savefig(path2SaveFig+"DimLess"+p+"_"+str(m))
 
-def plotMeanDay(df_mean, df_high, df_low, name):
+def plotMeanDay(df_mean, df_high, df_low, name, same_ax = False):
     """Plot on a same Figure the mean day and its low and high equivalent.
     
 	Parameters
@@ -149,6 +151,8 @@ def plotMeanDay(df_mean, df_high, df_low, name):
                 Data of the high values day
             df_low : DataFrame
                 Data of the low values day
+            same_ax : Boolean, default False
+                Whether or not the curves are plotted on a same axis
 
 	Returns 
 	_ _ _ _ _ _ _ _ _ _ 
@@ -157,16 +161,26 @@ def plotMeanDay(df_mean, df_high, df_low, name):
                 Figure where are plot the curves
             ax : Axis
                 Axis in the figure where are plot the curves"""
-    fig, ax = plt.subplots(nrows = df_mean.columns.size, sharex = True)
+    if (same_ax):
+        fig, ax = plt.subplots(nrows = 1)
+        
+    else:
+        fig, ax = plt.subplots(nrows = df_mean.columns.size, sharex = True)
     fig.suptitle(name)
-    df_mean.plot(subplots = True, ax = ax, label = "median")
-    if df_mean.columns.size > 1:
+    df_mean.plot(subplots = not same_ax, ax = ax, label = "median")
+    if (df_mean.columns.size > 1)*(not same_ax):
         for axi in ax:
             axi.legend(loc = "lower left")
     else:
         ax.legend(loc = "lower left")
-    df_high.plot(subplots = True, ax = ax, linestyle = "--", legend = False)
-    df_low.plot(subplots = True, ax = ax, linestyle = "--", legend = False)
+    
+    if (same_ax):
+        colors = [line.get_color() for line in ax.get_lines()]
+    else:
+        colors = None
+    
+    df_high.plot(subplots = not same_ax, ax = ax, linestyle = "--", color = colors, legend = False)
+    df_low.plot(subplots = not same_ax, ax = ax, linestyle = "--", color = colors, legend = False)
 
     return fig, ax
 
