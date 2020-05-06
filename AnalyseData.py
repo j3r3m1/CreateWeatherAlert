@@ -10,6 +10,8 @@ import graphviz
 from math import ceil
 import random
 from joblib import dump
+import pydot
+import os
 
 # For each key (corresponding to the month number), the associated season is given
 SeasonDict={1: "Winter", 2:"Winter", 3:"Spring", 4:"Spring", 5:"Spring", 6:"Summer", 7:"Summer", 8:"Summer", 9:"Autumn", 10:"Autumn", 11:"Autumn", 12:"Winter"}
@@ -332,7 +334,8 @@ def plotMeteorologicalRelations(df_micromet_indic, df_meteo_indic, operations,
 def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
                                   path2SaveFig, save = True):
     """Plot meteorological relations between micro meteorological and meteorological
-    indicators.
+    indicators. Return the tree depth that maximizes the accuracy for each combination
+    of season / period.
     
 	Parameters
 	_ _ _ _ _ _ _ _ _ _ 
@@ -380,6 +383,7 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
     
     fig, ax = plt.subplots(ncols = len(df_micromet_indic.keys()), figsize = (20, 4), sharey = True)
     fig.subplots_adjust(left = 0.05, right = 0.99, wspace = 0.22, hspace = 0.30, bottom = 0.12, top = 0.90)
+    result = pd.DataFrame(columns = ["period", "season", "depth", "accuracy"])
     for axi, p in enumerate(df_micromet_indic.keys()):
         for si, s in enumerate(df_micromet_indic[p].keys()):
             print("\n\n\n" + p + " - " + s)
@@ -457,25 +461,39 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
             #Recover the tree depth that gives the most accurate results
             best_depth = accuracy.median(level = 0).idxmax()
             
+            # Store this information in the result dataframe
+            result = result.append(pd.Series({"period":p, "Season":s, "depth": best_depth,
+                                              "accuracy": accuracy.median(level = 0).max()}),
+                                    ignore_index = True)
+            
             # Create the tree with all data for this season / period of day
             clf = tree.DecisionTreeClassifier(max_depth = best_depth)
             final_tree = clf.fit(df_all[meteo_var], df_all[col_name])
             
             # Save the model into a joblib file
-            dump(final_tree, path2SaveFig+s+p+'.joblib') 
+            filename = "Tree_"+s+p
+            dump(final_tree, path2SaveFig+filename+'.joblib') 
             
-            # Export the tree as an image
+            # Export the joblist tree as an image (.dot)
             dot_data = tree.export_graphviz(final_tree, out_file=None, 
                                             feature_names=meteo_var,  
                                             class_names=sorted(set(df_all[col_name])),  
                                             filled=True, rounded=True,  
                                             special_characters=True)
-            graphviz.Source(dot_data).save(filename = "Tree_"+s+p+".dot",
+
+            graphviz.Source(dot_data).save(filename = filename+".dot",
                                            directory = path2SaveFig)
+            (ImageTree,) = pydot.graph_from_dot_file(path2SaveFig+filename+".dot")
+            ImageTree.write_png(path2SaveFig+filename+".png")
+            
+            os.remove(path2SaveFig+filename+".dot")
+            os.remove(path2SaveFig+filename+".joblib")
             
     if save:
         fig.savefig(path2SaveFig+"Accuracy.png")
+        result.to_csv(path2SaveFig+"IdealTreeDepth.csv")
 
+    return result
 
 def createYearsAndMonthsDic(df):
     """ Create a dictionary of years and the corresponding months that are present
@@ -560,7 +578,7 @@ def meanDayCharac(df, robust = True, perc_values = 0.9):
     return result_mean, result_high, result_low
 
 def filterTimeAndAverage(df, df_W, filt_micro, filt_W, robust = False,
-                         time_norm = False):
+                         time_norm = False, onlyMeteo = False):
     """ Acts differently on the two input types:
             - for micro-meteorological data, filters a certain range of
             the day time (e.g.: ["8:15", "10:15"] or ["23:00", "01:00"])
@@ -600,27 +618,36 @@ def filterTimeAndAverage(df, df_W, filt_micro, filt_W, robust = False,
             time_norm : boolean, default False
                 Whether or not the time is normalized in order to have day range
                 between 0 and 1 and night range between 1 and 2.
+            onlyMeteo : boolean, default False
+                Set to True if only the meteorological indicators
+                (not the micro-meteorological) must be calculated
             
         Returns
 		_ _ _ _ _ _ _ _ _ _ 
 							
-        		Two dataframes : the first being the mean micro-meteorological values
+        		One or two dataframes : the first being the mean micro-meteorological values
                 during the given interval for each day, the second the mean
                 meteorological condition for each meteorological interval (and for
                 each day)"""
-    # Filters the micro-meterological data
-    df_micro_filt = df.between_time(pd.Timestamp(filt_micro[0]).time(),\
-                                    pd.Timestamp(filt_micro[1]).time())
-                
-    # Average the interval for each day (starting the average at the beginning of
-    # the interval)
-    if robust == True:
-        df_micro_result = df_micro_filt.resample("24H").median()
-    else:
-        df_micro_result = df_micro_filt.resample("24H").mean()
+    if onlyMeteo:
+        # Filters the micro-meterological data
+        df_micro_filt = df.between_time(pd.Timestamp(filt_micro[0]).time(),\
+                                        pd.Timestamp(filt_micro[1]).time())
+                    
+        # Average the interval for each day (starting the average at the beginning of
+        # the interval)
+        if robust == True:
+            df_micro_result = df_micro_filt.resample("24H").median()
+        else:
+            df_micro_result = df_micro_filt.resample("24H").mean()
     
-    # Filters and calculates the average for meteorological conditions
-    df_W_result = pd.DataFrame(index = df_micro_result.index)
+        # Filters and calculates the average for meteorological conditions
+        df_W_result = pd.DataFrame(index = df_micro_result.index)
+        
+    else:
+        # Filters and calculates the average for meteorological conditions
+        df_W_result = pd.DataFrame(index = df_W.index.date)
+        
     # For each meteorological variable
     for v in filt_W.keys():
         # Use moving average to average (by median or mean) values using a "NB_hours" 
@@ -651,9 +678,13 @@ def filterTimeAndAverage(df, df_W, filt_micro, filt_W, robust = False,
         # all variables (using an intersection of the indexes)
         df_W_result = df_W_result.join(df_W_filt, how = "inner")
     
-    # Reindex the microclimat data in order to have the same indexes as the meteorological data
-    df_micro_result = df_micro_result.reindex(df_W_result.index)
+    if onlyMeteo:
+        # Reindex the microclimat data in order to have the same indexes as the meteorological data
+        df_micro_result = df_micro_result.reindex(df_W_result.index)
 
+    else:
+        df_micro_result = None
+    
     return df_micro_result, df_W_result
 
 def getSunEvents(df, location):
