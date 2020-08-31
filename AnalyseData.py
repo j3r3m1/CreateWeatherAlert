@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+Created on Wed May  6 11:43:51 2020
+
+@author: Jérémy Bernard
+"""
+
 import pandas as pd
 import numpy as np
 from collections import defaultdict
@@ -187,9 +193,9 @@ def plotMeanDay(df_mean, df_high, df_low, name, same_ax = False):
     return fig, ax
 
 def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
-                         meteo_period_df):
+                         meteo_period_df, path2save = None, onlyMeteo=False):
     """Calculates average conditions for micro-meteorological data and meteorological
-    data:
+    data (returns only one of them if the other input is null):
         - Concerning micro-meteorological data, the averaging is performed
         for each day at one (or several) given periods of the day (and of the night).
         - Concerning meteorological data, the averaging is performed during a 
@@ -213,6 +219,12 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
                 values for the meteorological condition calculation. These
                 periods are defined in hours before the begining of the micro-meteorological
                 period.
+            path2save : String, default None
+                The URL where to save the indicator result for each season / period
+                (if None not saved)
+            onlyMeteo : boolean, default False
+                Set to True if only the meteorological indicators
+                (not the micro-meteorological) must be calculated
 
 	Returns 
 	_ _ _ _ _ _ _ _ _ _ 
@@ -230,11 +242,12 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
     # Convert seconds to a time of the day round at dt = 15 minutes
     df_sun_s = {s : (pd.datetime(2019, 1, 1) + 
                 pd.offsets.Second(int(df_sun_sec_s.get_group(s).median()["sunset"]))).round("900S")
-                for s in sorted(set(SeasonDict.values()))}
+                for s in df_sun_sec_s.groups.keys()}
     
     # Sort data by season for micro-meteo and meteo data
-    df_seas = df2study.groupby(GroupMonthBySeas)
-    df_W_int_s = df_W_int.groupby(GroupMonthBySeas)
+    if not onlyMeteo:
+        df_seas = df2study.groupby(GroupMonthBySeas)
+    df_W_int_seas = df_W_int.groupby(GroupMonthBySeas)
     
     # Calculate the median or mean for each period (and each day) of the micro-meteo and meteo data
     df_micromet_indic = {}
@@ -244,7 +257,7 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
         filt_meteo = meteo_period_df.loc[p, :]
         df_micromet_indic[p] = {}
         df_meteo_indic[p] = {}
-        for s in sorted(set(SeasonDict.values())):
+        for s in df_W_int_seas.groups.keys():
             print(s)
             # If the period of interest is during the day
             if p[0:2] == "PJ":
@@ -261,10 +274,20 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
                     filt_micro = ["", ""]
             #Calculate the average value only if the period is not null or nan
             if (filt_micro[0] != "")*(filt_micro[1] != "")*(filt_micro != ""):
-                df_micromet_indic[p][s], df_meteo_indic[p][s] = filterTimeAndAverage(df_seas.get_group(s), df_W_int_s.get_group(s), 
+                if not onlyMeteo:
+                    df_seas_s = df_seas.get_group(s)
+                else:
+                    df_seas_s = pd.DataFrame()
+                df_W_int_seas_s = df_W_int_seas.get_group(s)
+                df_micromet_indic[p][s], df_meteo_indic[p][s] = filterTimeAndAverage(df_seas_s, df_W_int_seas_s, 
                                                                                      filt_micro, filt_meteo, robust = False,
-                                                                                     time_norm = False)
-     
+                                                                                     time_norm = False, onlyMeteo = onlyMeteo)
+
+                if not df_micromet_indic[p][s].empty and path2save:
+                    df_micromet_indic[p][s].to_csv(path2save+s+"_"+p+"_MicrometIndic.csv")
+                if path2save:
+                    df_meteo_indic[p][s].to_csv(path2save+s+"_"+p+"_MetIndic.csv")
+                
     return df_micromet_indic, df_meteo_indic
         
 
@@ -297,7 +320,7 @@ def plotMeteorologicalRelations(df_micromet_indic, df_meteo_indic, operations,
 
 	Returns 
 	_ _ _ _ _ _ _ _ _ _ 
-
+df_sun_sec
 			Return None"""
     for p in df_micromet_indic.keys():
         for s in df_micromet_indic[p].keys():
@@ -346,7 +369,6 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
                 The meteorological indicators sorted by period and by month
             config_dic : Dictionary
                 Configuration dictionary for the study:
-                    -> "ratio_of_val_to_keep": Ratio of extremum values to keep
                     -> "ratio_calib": Ratio of the values to keep for the calibration
                     -> "n_eval": Number of evaluation (calibration / prediction processes)
                     -> "col_name": Name of the column containing the extremum / other class
@@ -370,7 +392,6 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
     # Some useful variables
     colors = pd.Series({"Summer": "red", "Spring": "green", "Winter": "blue", 
                         "Autumn" : "black"})
-    ratio_of_val_to_keep = config_dic["ratio_of_val_to_keep"]
     ratio_calib = config_dic["ratio_calib"]
     ratio_calib = config_dic["ratio_calib"]
     n_eval = config_dic["n_eval"]
@@ -379,7 +400,6 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
     df_conditions = config_dic["df_conditions"]
     ratio2considerNotNan = config_dic["ratio2considerNotNan"]
     tick_size = config_dic["tick_size"]
-    operations = config_dic["operations"]
     
     fig, ax = plt.subplots(ncols = len(df_micromet_indic.keys()), figsize = (20, 4), sharey = True)
     fig.subplots_adjust(left = 0.05, right = 0.99, wspace = 0.22, hspace = 0.30, bottom = 0.12, top = 0.90)
@@ -389,34 +409,10 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
             print("\n\n\n" + p + " - " + s)
             
             meteo_var = df_conditions.loc[p, "meteorological_variables"]
-            x = df_meteo_indic[p][s][meteo_var].copy()
             
-            # Recover the station to average
-            stations2averag = operations.loc[p, "list_average"]
-            #Calculate the minimum number of stations that should not be nan in order to consider the time step
-            thresh_nan = ceil(ratio2considerNotNan*len(stations2averag))
-            
-            y = df_micromet_indic[p][s][stations2averag].dropna(thresh = thresh_nan, axis = 1).mean(axis = 1)
-            # Subtract the temperature difference of a previous time period in order to calculate whether the temperature
-            # difference has increased or decreased
-            if operations.loc[p, "subtract"] is not None:
-                if s in df_micromet_indic[operations.loc[p, "subtract"]].keys():
-                    y = y.subtract(df_micromet_indic[operations.loc[p, "subtract"]][s][stations2averag].dropna(thresh = thresh_nan, axis = 1).mean(axis = 1))
-                
-            df_all = x.join(pd.Series(y, name = "y"), how = "inner").dropna(how = "any")      
-    
-            # Set a different class to the samples being extremum and other values
-            if df_conditions.loc[p, "extremum_type"] == "MAX":
-                index_extremum = df_all[df_all.y>=df_all.y.quantile(1-ratio_of_val_to_keep)].index
-                index_other = df_all[df_all.y<df_all.y.quantile(1-ratio_of_val_to_keep)].index
-                df_all.loc[index_extremum, col_name] = ["extremum" for ind in index_extremum]
-                df_all.loc[index_other, col_name] = ["other" for ind in index_other]
-            elif df_conditions.loc[p, "extremum_type"] == "MIN":
-                index_extremum = df_all[df_all.y<=df_all.y.quantile(ratio_of_val_to_keep)].index
-                index_other = df_all[df_all.y>df_all.y.quantile(ratio_of_val_to_keep)].index
-                df_all.loc[index_extremum, col_name] = ["extremum" for ind in index_extremum]
-                df_all.loc[index_other, col_name] = ["other" for ind in index_other]
-            df_all.drop(["y"], axis = 1, inplace = True)
+            # Create the x and y objects that will be used in the model
+            df_all = createXY(df_micromet_indic, df_meteo_indic, df_conditions, p,
+                              s, col_name, ratio2considerNotNan)
             
             # Test the regression tree for several tree max_depth values
             accuracy_indexes = pd.MultiIndex.from_product([max_depth,range(0, n_eval)], names=['depth', 'iter'])
@@ -466,34 +462,139 @@ def identifyBestConfigurationTree(df_micromet_indic, df_meteo_indic, config_dic,
                                               "accuracy": accuracy.median(level = 0).max()}),
                                     ignore_index = True)
             
-            # Create the tree with all data for this season / period of day
-            clf = tree.DecisionTreeClassifier(max_depth = best_depth)
-            final_tree = clf.fit(df_all[meteo_var], df_all[col_name])
-            
-            # Save the model into a joblib file
-            filename = "Tree_"+s+p
-            dump(final_tree, path2SaveFig+filename+'.joblib') 
-            
-            # Export the joblist tree as an image (.dot)
-            dot_data = tree.export_graphviz(final_tree, out_file=None, 
-                                            feature_names=meteo_var,  
-                                            class_names=sorted(set(df_all[col_name])),  
-                                            filled=True, rounded=True,  
-                                            special_characters=True)
-
-            graphviz.Source(dot_data).save(filename = filename+".dot",
-                                           directory = path2SaveFig)
-            (ImageTree,) = pydot.graph_from_dot_file(path2SaveFig+filename+".dot")
-            ImageTree.write_png(path2SaveFig+filename+".png")
-            
-            os.remove(path2SaveFig+filename+".dot")
-            os.remove(path2SaveFig+filename+".joblib")
+            # Create the optimum decision tree and save it
+            createDecisionTree(x = df_all[meteo_var], y = df_all[col_name], 
+                               max_depth = best_depth, path2SaveFig = path2SaveFig,
+                               filename = "Tree_"+s+p)
             
     if save:
         fig.savefig(path2SaveFig+"Accuracy.png")
         result.to_csv(path2SaveFig+"IdealTreeDepth.csv")
 
     return result
+
+
+def createXY(df_micromet_indic, df_meteo_indic, df_conditions, period,
+             season, col_name, ratio2considerNotNan = 0):
+    """ Create the x (independent variables) and y (dependent variable) dataset.
+    
+	Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+
+        		df_micromet_indic : pd.Series
+                The dependent variable data
+            df_meteo_indic : pd.DataFrame
+                The independent variable data
+            df_conditions : pd.DataFrame
+                Informations about operations to apply on y values (for each period as index). 
+                Must contain as columns:
+                    -> "list_average": List of stations to average as y
+                    -> "subtract": Period to use as reference if an 'evolution of y' is calculated (None if not)
+                    -> "extremum_type": "MIN" or "MAX"
+                    -> "quantile_to_keep": Ratio of extremum values to keep
+            period : String
+                Name of the period of the day
+            season : string
+                Name of the season
+            col_name : String
+                Name to give to the y value (dependent variable)
+            ratio2considerNotNan : float, default 0
+                Ratio of stations needed to consider a time step as "usable" (all if 0)
+
+	Returns 
+	_ _ _ _ _ _ _ _ _ _ 
+
+			Return the x and y variables"""      
+    # List of meteorological variables to keep for the model
+    meteo_var = df_conditions.loc[period, "meteorological_variables"]
+    
+    x = df_meteo_indic[period][season][meteo_var].copy()
+    
+    # Ratio of extremum values to keep
+    ratio_of_val_to_keep = df_conditions.loc[period, "quantile_to_keep"]
+    
+    # Recover the station to average
+    stations2averag = df_conditions.loc[period, "list_average"]
+
+    #Calculate the minimum number of stations that should not be nan in order to consider the time step
+    thresh_nan = ceil(ratio2considerNotNan*len(stations2averag))
+    
+    y = df_micromet_indic[period][season][stations2averag].dropna(thresh = thresh_nan, axis = 1).mean(axis = 1)
+    
+    # Subtract the temperature difference of a previous time period in order to calculate whether the temperature
+    # difference has increased or decreased
+    if df_conditions.loc[period, "subtract"] is not None:
+        if season in df_micromet_indic[df_conditions.loc[period, "subtract"]].keys():
+            y = y.subtract(df_micromet_indic[df_conditions.loc[period, "subtract"]][season][stations2averag].dropna(thresh = thresh_nan, axis = 1).mean(axis = 1))
+    
+    df_all = x.join(pd.Series(y, name = "y"), how = "inner").dropna(how = "any")      
+    
+    # Set a different class to the samples being extremum and other values
+    if df_conditions.loc[period, "extremum_type"] == "MAX":
+        index_extremum = df_all[df_all.y>=df_all.y.quantile(1-ratio_of_val_to_keep)].index
+        index_other = df_all[df_all.y<df_all.y.quantile(1-ratio_of_val_to_keep)].index
+        df_all.loc[index_extremum, col_name] = ["extremum" for ind in index_extremum]
+        df_all.loc[index_other, col_name] = ["other" for ind in index_other]
+    elif df_conditions.loc[period, "extremum_type"] == "MIN":
+        index_extremum = df_all[df_all.y<=df_all.y.quantile(ratio_of_val_to_keep)].index
+        index_other = df_all[df_all.y>df_all.y.quantile(ratio_of_val_to_keep)].index
+        df_all.loc[index_extremum, col_name] = ["extremum" for ind in index_extremum]
+        df_all.loc[index_other, col_name] = ["other" for ind in index_other]
+    df_all.drop(["y"], axis = 1, inplace = True)
+    
+    return df_all
+
+def createDecisionTree(x, y, max_depth = None, path2SaveFig = None, filename = None):
+    """ Create a decision tree according to a x / y dataset and a tree depth.
+    Can save the tree as a PNG.
+    
+	Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+
+			y : pd.Series
+                The dependent variable data
+            x : pd.DataFrame
+                The independent variable data
+            max_depth : integer, default None
+                Maximum depth of the tree to build (if None, no maximum)
+            path2SaveFig : string, default None
+                Name of the URL where to save the tree as image (if None, no figure plotted)
+            filename : string, default None
+                Name of the file to save the tree as image (if None, no figure plotted)
+
+	Returns 
+	_ _ _ _ _ _ _ _ _ _ 
+
+			Return a decision tree classifier"""    
+    x_cols = x.columns
+    
+    #Merge x and y and remove nan
+    df_all = x.join(pd.Series(y, name = "y"), how = "inner").dropna(how = "any")      
+    
+    # Create the tree with all data for this season / period of day
+    clf = tree.DecisionTreeClassifier(max_depth = max_depth)
+    final_tree = clf.fit(df_all[x_cols], df_all.y)
+    
+    # Save the model into a joblib file if a path is indicated
+    if path2SaveFig and filename:
+        dump(final_tree, path2SaveFig+filename+'.joblib') 
+    
+        # Export the joblist tree as an image (.dot)
+        dot_data = tree.export_graphviz(final_tree, out_file=None, 
+                                        feature_names=x.columns,  
+                                        class_names=sorted(set(y)),  
+                                        filled=True, rounded=True,  
+                                        special_characters=True)
+    
+        graphviz.Source(dot_data).save(filename = filename+".dot",
+                                       directory = path2SaveFig)
+        (ImageTree,) = pydot.graph_from_dot_file(path2SaveFig+filename+".dot")
+        ImageTree.write_png(path2SaveFig+filename+".png")
+        
+        os.remove(path2SaveFig+filename+".dot")
+        os.remove(path2SaveFig+filename+".joblib")
+        
+    return final_tree
 
 def createYearsAndMonthsDic(df):
     """ Create a dictionary of years and the corresponding months that are present
@@ -629,7 +730,7 @@ def filterTimeAndAverage(df, df_W, filt_micro, filt_W, robust = False,
                 during the given interval for each day, the second the mean
                 meteorological condition for each meteorological interval (and for
                 each day)"""
-    if onlyMeteo:
+    if not onlyMeteo:
         # Filters the micro-meterological data
         df_micro_filt = df.between_time(pd.Timestamp(filt_micro[0]).time(),\
                                         pd.Timestamp(filt_micro[1]).time())
@@ -641,12 +742,12 @@ def filterTimeAndAverage(df, df_W, filt_micro, filt_W, robust = False,
         else:
             df_micro_result = df_micro_filt.resample("24H").mean()
     
-        # Filters and calculates the average for meteorological conditions
+        # Creates the dataframe that will recover results
         df_W_result = pd.DataFrame(index = df_micro_result.index)
         
     else:
-        # Filters and calculates the average for meteorological conditions
-        df_W_result = pd.DataFrame(index = df_W.index.date)
+        # Creates the dataframe that will recover results
+        df_W_result = pd.DataFrame(index = sorted(set(df_W.index.date)))
         
     # For each meteorological variable
     for v in filt_W.keys():
@@ -678,12 +779,12 @@ def filterTimeAndAverage(df, df_W, filt_micro, filt_W, robust = False,
         # all variables (using an intersection of the indexes)
         df_W_result = df_W_result.join(df_W_filt, how = "inner")
     
-    if onlyMeteo:
+    if not onlyMeteo:
         # Reindex the microclimat data in order to have the same indexes as the meteorological data
         df_micro_result = df_micro_result.reindex(df_W_result.index)
 
     else:
-        df_micro_result = None
+        df_micro_result = pd.DataFrame()
     
     return df_micro_result, df_W_result
 
