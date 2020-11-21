@@ -67,13 +67,17 @@ def downloadMeteorama(city = 'Grièges',
     # Create the final DataFrame from each DataFrame day
     df_output = pd.DataFrame(columns = col_names["toKeep"])
     for i in range(3, 12):
-        print(i)
         # Replace the column names and keep only those useful
         df_list[i].columns = col_names["toSet"]
         df_list[i] = df_list[i][col_names["toKeep"]]
-        # Create the datetime column to replace the jour by a date and the hour
+        # Set the data to unicode in case it is integer (it is the case when the nebulosity is 0 for the whole day...)
+        df_list[i] = df_list[i].astype("unicode")
+        # Create the datetime column to replace the day by a date and the hour
         df_list[i].index = [pd.datetime.today().date() + pd.offsets.Day(i-3) +\
                                        pd.offsets.Hour(h) for h in df_list[i].index]
+        
+        df_list[i]["Nebulosity"]
+        
         # Remove characters that are not numbers for each column
         for j, var in enumerate(char2remove):
             df_list[i][df_list[i].columns[j]] = df_list[i][df_list[i].columns[j]]\

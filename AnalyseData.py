@@ -324,7 +324,7 @@ df_sun_sec
 			Return None"""
     for p in df_micromet_indic.keys():
         for s in df_micromet_indic[p].keys():
-            print "\n\n\n" + p + " - " + s
+            print("\n\n\n" + p + " - " + s)
             fig, ax = plt.subplots(ncols = df_meteo_indic[p][s].columns.size, figsize = (20, 4), sharey = True)
             x = df_meteo_indic[p][s].copy()
             # Recover the station to average
