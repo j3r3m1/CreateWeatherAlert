@@ -839,14 +839,14 @@ def getSunEvents(df, location):
     
     return df_result
 
-def getSunAngle(df, location):
+def getSunAngle(df_index, location):
     """ Get the position of the sun for a given set of dates
     from an horizontal reference (positive if the sun can be seen by the observer).
 
 		Parameters
 		_ _ _ _ _ _ _ _ _ _ 
 
-				df : pandas.DatetimeIndex
+				df_index : pandas.date_range
 					Object where are contained the times where we want to calculate
                 the sun position.
             location : geopy.geocoders.Nominatim().geocode(city) object
@@ -866,9 +866,9 @@ def getSunAngle(df, location):
     top_obj = planets["earth"] + api.Topos(location.latitude, location.longitude)  
 
     # Calculates the sun position for each index
-    result = pd.Series([top_obj.at(tim_sc.utc(i.year, i.month, i.day, i.hour, i.minute)).\
-                            observe(sun).apparent().altaz()[0].radians for i in df.index], \
-                        index = df.index)
+    result = pd.Series(top_obj.at(tim_sc.from_datetimes(df_index)).\
+                            observe(planets["SUN"]).apparent().altaz()[0].radians, \
+                        index = df_index)
     
     return result
 
@@ -1186,3 +1186,67 @@ def select_from_data(df, nb_data = np.nan, ratio_data = 0.7, nb_data_class = np.
             result = result.append(data2add) 
     
     return result
+
+
+def diffuseRadiationFromReindl1990(I,phi,Ta, location):    
+    # Intersect the indexes from the three series in order to keep
+    # only indexes which will result in having a value
+    index = I.index.intersection(phi.index).intersection(Ta.index)
+    
+    # Gather variables in a DataFrame to simplify manipulations
+    df = pd.concat([I.rename("I"), phi.rename("phi"), Ta.rename("Ta")],
+                   axis = 1).reindex(index)
+    
+    # Calculate the solar altitude angle for each of the index
+    df["alpha"] = getSunAngle(index, location)
+    
+    # Calculate the extraterrestrial global radiation on a horizontal
+    # surface for the given indexes and location on earth
+    Iextra = getExtraTerrestrialSolarRadiation(df["alpha"])
+    
+    # Calculate the clearness index
+    df["kt"] = df.I.divide(Iextra)
+    
+    # If data sampled more frequently than 1h,
+    # use a rolling average to have hourly values
+    # (especially hourly radiations) for each time step
+    nb_sample_per_hour = int(pd.to_timedelta("1H")/\
+                             pd.infer_freq(I.index))
+    if(nb_sample_per_hour>1):
+        df = df.rolling(pd.offsets.Hour(1),
+                      min_periods = nb_sample_per_hour).mean()
+    
+    # Filter the indexes according to the kt threshold 
+    # in order to apply relations from the piece-wise correlation
+    df_a = df[(df.kt>=0)&(df.kt<=0.3)]
+    df_b = df[(df.kt>0.3)&(df.kt<0.78)]
+    df_c = df[df.kt>=0.78]
+    
+    # Apply the relations for each correlation
+    Id_a = df_a.I.multiply(1.000-0.232*df_a.kt + 0.0239*np.sin(df_a.alpha)-\
+                           0.000682*df_a.Ta + 0.0195*df_a.phi)
+    Id_b = df_b.I.multiply(1.329-1.716*df_b.kt + 0.267*np.sin(df_b.alpha)-\
+                           0.00357*df_b.Ta + 0.106*df_b.phi)/10
+    Id_c = df_c.I.multiply(0.426*df_c.kt + 0.256*np.sin(df_c.alpha)-\
+                           0.00349*df_c.Ta + 0.0734*df_c.phi)/10
+    
+    # Remove potential bias according to Reindl constraints
+    Id_a[Id_a>I.reindex(Id_a.index)] = I.reindex(Id_a.index)[Id_a>I.reindex(Id_a.index)]
+    Id_b[Id_b<0.1*I.reindex(Id_b.index)] = 0.1*I.reindex(Id_b.index)[Id_b<0.1*I.reindex(Id_b.index)]
+    Id_b[Id_b>0.97*I.reindex(Id_b.index)] = 0.97*I.reindex(Id_b.index)[Id_b>0.97*I.reindex(Id_b.index)]
+    Id_c[Id_c<0.1*I.reindex(Id_c.index)] = 0.1*I.reindex(Id_c.index)[Id_c<0.1*I.reindex(Id_c.index)]
+    Id_c[Id_c>0.97*I.reindex(Id_c.index)] = 0.97*I.reindex(Id_c.index)[Id_c>0.97*I.reindex(Id_c.index)]
+       
+    """# Merge the series pieces into one 
+    Id = Id_a.append(Id_b).append(Id_c)
+    
+    return Id"""
+    return Id_a, Id_b, Id_c, df.kt
+    
+def getExtraTerrestrialSolarRadiation(sun_angle):
+    # Solar constant (W/m²)
+    solarConstant = 1366.1
+    
+    return  solarConstant * \
+            (1+0.033*np.cos(2*np.pi*sun_angle.index.dayofyear/365)) *\
+            np.sin(sun_angle)

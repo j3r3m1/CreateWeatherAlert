@@ -63,18 +63,19 @@ def downloadMeteorama(city = 'Grièges',
     # Get all html tables from the Meteorama web-site and convert them into a
     # list of csv tables
     df_list = pd.read_html(r.text)
-    
+
     # Create the final DataFrame from each DataFrame day
     df_output = pd.DataFrame(columns = col_names["toKeep"])
-    for i in range(3, 12):
+    for i in range(0, len(df_list)):
         # Replace the column names and keep only those useful
         df_list[i].columns = col_names["toSet"]
         df_list[i] = df_list[i][col_names["toKeep"]]
         # Set the data to unicode in case it is integer (it is the case when the nebulosity is 0 for the whole day...)
         df_list[i] = df_list[i].astype("unicode")
+        
         # Create the datetime column to replace the day by a date and the hour
-        df_list[i].index = [pd.datetime.today().date() + pd.offsets.Day(i-3) +\
-                                       pd.offsets.Hour(h) for h in df_list[i].index]
+        df_list[i].index = [pd.datetime.today().date() + pd.offsets.Day(i) +\
+                                       pd.offsets.Hour(23-df_list[i].index.max()+h) for h in df_list[i].index]
         
         df_list[i]["Nebulosity"]
         
