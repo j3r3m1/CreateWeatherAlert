@@ -287,7 +287,10 @@ def indicatorCalculation(df2study, df_W_int, df_sun_events, micromet_period_dic,
                     df_micromet_indic[p][s].to_csv(path2save+s+"_"+p+"_MicrometIndic.csv")
                 if path2save:
                     df_meteo_indic[p][s].to_csv(path2save+s+"_"+p+"_MetIndic.csv")
-                
+            
+                # Drop nan (for example for the first day if the period is already passed...)
+                df_meteo_indic[p][s].dropna(inplace=True)
+            
     return df_micromet_indic, df_meteo_indic
         
 
@@ -769,10 +772,10 @@ def filterTimeAndAverage(df, df_W, filt_micro, filt_W, robust = False,
         micro_start_hour = int(filt_micro[0].split(":")[0])
         # the end of df_W average is in a previous day
         if micro_start_hour < -filt_W[v][1]:
-            df_W_filt.index = df_W_filt.index.date + pd.offsets.Day(1)
+            df_W_filt.index = pd.DatetimeIndex(df_W_filt.index.date) + pd.offsets.Day(1)
         # the end of df_W average is in the next day
         elif 24-micro_start_hour < filt_W[v][1]:
-            df_W_filt.index = df_W_filt.index.date + pd.offsets.Day(-1)
+            df_W_filt.index = pd.DatetimeIndex(df_W_filt.index.date) + pd.offsets.Day(-1)
         else:
             df_W_filt.index = df_W_filt.index.date
         # Add the result for this specific variable in a DataFrame containing 
